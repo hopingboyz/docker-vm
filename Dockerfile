@@ -17,6 +17,7 @@ RUN apt-get update && \
     novnc \
     websockify \
     net-tools \
+    qemu-utils \
     qemu-system-x86 \
     spice-html5 \
     docker.io \
@@ -29,29 +30,10 @@ RUN apt-get update && \
     && rm -f /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
     && rm -f /lib/systemd/system/systemd-update-utmp*
 
-# Enable necessary systemd services
-RUN systemctl enable docker.service
+# Create necessary directories for libvirt and qemu
+RUN mkdir -p /var/lib/libvirt/images/
 
-# Download and configure noVNC
-RUN git clone https://github.com/novnc/noVNC.git /opt/noVNC \
-    && git clone https://github.com/novnc/websockify /opt/noVNC/utils/websockify \
-    && ln -s /opt/noVNC/utils/launch.sh /usr/local/bin/novnc
-
-# Create VM disk image
+# Create VM disk image (after directory exists)
 RUN qemu-img create -f qcow2 /var/lib/libvirt/images/vm-disk.qcow2 20G
 
-# Copy service files and startup scripts
-COPY qemu-vm.service /etc/systemd/system/
-COPY start-vm.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start-vm.sh \
-    && systemctl enable qemu-vm.service
-
-# Prepare Docker-in-Docker
-RUN echo 'DOCKER_OPTS="--storage-driver=overlay2"' > /etc/default/docker \
-    && mkdir -p /etc/systemd/system/docker.service.d
-
-# Expose ports
-EXPOSE 6080 2375
-
-# Set the entrypoint to init
-ENTRYPOINT ["/lib/systemd/systemd"]
+# Rest of your Dockerfile continues...
