@@ -1,0 +1,12 @@
+[Unit]
+Description=QEMU Virtual Machine
+After=network.target docker.service
+
+[Service]
+ExecStart=/usr/local/bin/start-vm.sh
+Restart=always
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
