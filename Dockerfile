@@ -12,11 +12,12 @@ RUN apt-get update && \
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
 
 # Set environment variables
-ENV NOTVISIBLE "in users profile"
+ENV NOTVISIBLE="in users profile"
 RUN echo "export VISIBLE=now" >> /etc/profile
 
 # Expose SSH
 EXPOSE 22
 
-# Start systemd and SSH
+# Start SSH service
 CMD ["/usr/sbin/sshd", "-D"]
+
