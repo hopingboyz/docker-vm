@@ -1,26 +1,57 @@
+# Use Ubuntu with systemd as base image
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive \
+    container=docker
 
-# Basic setup
-RUN apt update && \
-    apt install -y systemd openssh-server curl sudo gnupg ca-certificates && \
-    mkdir /var/run/sshd && \
-    echo 'root:root' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# Install systemd and dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    systemd \
+    systemd-sysv \
+    dbus \
+    wget \
+    xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    net-tools \
+    qemu-system-x86 \
+    spice-html5 \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    && rm -f /etc/systemd/system/*.wants/* \
+    && rm -f /lib/systemd/system/local-fs.target.wants/* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+    && rm -f /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
+    && rm -f /lib/systemd/system/systemd-update-utmp*
 
-# Install Node.js (for Wetty)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt install -y nodejs && \
-    npm install -g wetty
+# Enable necessary systemd services
+RUN systemctl enable docker.service
 
-# Create a launch script
-RUN echo '#!/bin/bash\n\
-/usr/sbin/sshd\n\
-wetty --port 3000 --ssh-host 127.0.0.1 --ssh-user root --ssh-port 22' > /start.sh && \
-    chmod +x /start.sh
+# Download and configure noVNC
+RUN git clone https://github.com/novnc/noVNC.git /opt/noVNC \
+    && git clone https://github.com/novnc/websockify /opt/noVNC/utils/websockify \
+    && ln -s /opt/noVNC/utils/launch.sh /usr/local/bin/novnc
 
-# Expose web terminal and SSH
-EXPOSE 3000 22
+# Create VM disk image
+RUN qemu-img create -f qcow2 /var/lib/libvirt/images/vm-disk.qcow2 20G
 
-CMD ["/start.sh"]
+# Copy service files and startup scripts
+COPY qemu-vm.service /etc/systemd/system/
+COPY start-vm.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start-vm.sh \
+    && systemctl enable qemu-vm.service
+
+# Prepare Docker-in-Docker
+RUN echo 'DOCKER_OPTS="--storage-driver=overlay2"' > /etc/default/docker \
+    && mkdir -p /etc/systemd/system/docker.service.d
+
+# Expose ports
+EXPOSE 6080 2375
+
+# Set the entrypoint to init
+ENTRYPOINT ["/lib/systemd/systemd"]
