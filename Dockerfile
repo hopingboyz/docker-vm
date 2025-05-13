@@ -1,23 +1,26 @@
-# Use Ubuntu as base
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install systemd and SSH server
-RUN apt-get update && \
-    apt-get install -y systemd openssh-server sudo && \
+# Basic setup
+RUN apt update && \
+    apt install -y systemd openssh-server curl sudo gnupg ca-certificates && \
     mkdir /var/run/sshd && \
     echo 'root:root' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-# Set environment variables
-ENV NOTVISIBLE="in users profile"
-RUN echo "export VISIBLE=now" >> /etc/profile
+# Install Node.js (for Wetty)
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt install -y nodejs && \
+    npm install -g wetty
 
-# Expose SSH
-EXPOSE 22
+# Create a launch script
+RUN echo '#!/bin/bash\n\
+/usr/sbin/sshd\n\
+wetty --port 3000 --ssh-host 127.0.0.1 --ssh-user root --ssh-port 22' > /start.sh && \
+    chmod +x /start.sh
 
-# Start SSH service
-CMD ["/usr/sbin/sshd", "-D"]
+# Expose web terminal and SSH
+EXPOSE 3000 22
 
+CMD ["/start.sh"]
